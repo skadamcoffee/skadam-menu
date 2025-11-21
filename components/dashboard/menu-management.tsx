@@ -69,83 +69,83 @@ export function MenuManagement() {
     }
   }
 
-  // ---------------- CATEGORY IMAGE UPLOAD ----------------
-  const uploadCategoryImage = async () => {
-    if (!imageFile) return null
+  // -------------- CATEGORY IMAGE UPLOAD & SAVE ----------------
+const uploadCategoryImage = async (): Promise<string | null> => {
+  if (!imageFile) return null
 
-    const fileName = `${Date.now()}-${imageFile.name}`
+  const fileName = `${Date.now()}-${imageFile.name}`
+
+  try {
+    console.log("Uploading image file:", imageFile)
 
     const { data, error } = await supabase.storage
       .from("category-icons")
       .upload(fileName, imageFile, { cacheControl: "3600", upsert: true })
 
-    if (error) {
-      console.error("Image upload error:", error)
-      toast.error("Failed to upload image")
-      return null
-    }
+    if (error) throw error
+    console.log("Upload response:", data)
 
     const { data: urlData, error: urlError } = supabase.storage
       .from("category-icons")
       .getPublicUrl(fileName)
 
-    if (urlError) {
-      console.error("Error getting public URL:", urlError)
-      toast.error("Failed to get image URL")
-      return null
-    }
+    if (urlError) throw urlError
+    console.log("Public URL:", urlData.publicUrl)
 
     return urlData.publicUrl
+  } catch (err: any) {
+    console.error("Error uploading image:", err)
+    alert("Failed to upload image: " + (err.message || JSON.stringify(err)))
+    return null
+  }
+}
+
+const handleSaveCategory = async () => {
+  if (!categoryForm.name.trim()) {
+    alert("Category name is required!")
+    return
   }
 
-  // ---------------- CATEGORY MANAGEMENT ----------------
-  const handleSaveCategory = async () => {
-  if (!categoryForm.name.trim()) return;
-
-  let uploadedImageUrl = categoryForm.image_url;
+  let uploadedImageUrl = categoryForm.image_url
   if (imageFile) {
-    const url = await uploadCategoryImage();
-    if (url) uploadedImageUrl = url;
+    const url = await uploadCategoryImage()
+    if (!url) return // stop if upload failed
+    uploadedImageUrl = url
   }
 
-  const payload = { ...categoryForm, image_url: uploadedImageUrl };
+  const payload = { ...categoryForm, image_url: uploadedImageUrl }
 
   try {
     if (editingCategory) {
-      // Update in Supabase
+      // Update existing category
       const { error } = await supabase
         .from("categories")
         .update(payload)
-        .eq("id", editingCategory);
-      if (error) throw error;
+        .eq("id", editingCategory)
 
-      // Update state with the **new image URL**
-      setCategories(prev =>
-        prev.map(c =>
-          c.id === editingCategory ? { ...c, ...payload } : c
-        )
-      );
+      if (error) throw error
 
-      alert("Category updated successfully!");
+      // Update local state
+      setCategories(categories.map(c => c.id === editingCategory ? { ...c, ...payload } : c))
+      alert("Category updated successfully!")
     } else {
       // Insert new category
-      const { data, error } = await supabase.from("categories").insert([payload]).select();
-      if (error) throw error;
-      if (data) setCategories(prev => [...prev, data[0]]);
-      alert("Category created successfully!");
+      const { data, error } = await supabase.from("categories").insert([payload]).select()
+      if (error) throw error
+      if (data) setCategories([...categories, data[0]])
+      alert("Category created successfully!")
     }
 
     // Reset form
-    setCategoryForm({ name: "", description: "", display_order: 0, image_url: "" });
-    setImageFile(null);
-    setEditingCategory(null);
-    setShowCategoryForm(false);
-
-  } catch (error) {
-    console.error("Error saving category:", error);
-    alert("Failed to save category. Check console for details.");
+    setCategoryForm({ name: "", description: "", display_order: 0, image_url: "" })
+    setImageFile(null)
+    setEditingCategory(null)
+    setShowCategoryForm(false)
+  } catch (err: any) {
+    console.error("Error saving category:", err)
+    alert("Failed to save category: " + (err.message || JSON.stringify(err)))
   }
-};
+}
 
 
   const handleDeleteCategory = async (categoryId: string) => {
@@ -248,20 +248,21 @@ export function MenuManagement() {
                         <ImageIcon className="w-4 h-4" />
                         <span>Upload Icon</span>
                         <input
-                          type="file"
-                          accept="image/*"
-                          className="hidden"
-                          onChange={(e) => {
-                            const file = e.target.files?.[0]
-                            if (file) {
-                              setImageFile(file)
-                              setCategoryForm(prev => ({
-                                ...prev,
-                                image_url: URL.createObjectURL(file)
-                              }))
-                            }
-                          }}
-                        />
+  type="file"
+  accept="image/*"
+  className="hidden"
+  onChange={(e) => {
+    const file = e.target.files?.[0]
+    if (file) {
+      setImageFile(file)
+      setCategoryForm(prev => ({
+        ...prev,
+        image_url: URL.createObjectURL(file) // preview in modal
+      }))
+    }
+  }}
+/>
+
                       </label>
                       {categoryForm.image_url && (
                         <img src={categoryForm.image_url} className="w-12 h-12 rounded object-cover border" />
