@@ -100,45 +100,53 @@ export function MenuManagement() {
 
   // ---------------- CATEGORY MANAGEMENT ----------------
   const handleSaveCategory = async () => {
-    if (!categoryForm.name.trim()) {
-      toast.error("Category name is required")
-      return
-    }
+  if (!categoryForm.name.trim()) return;
 
-    let uploadedImageUrl = categoryForm.image_url
-    if (imageFile) {
-      uploadedImageUrl = await uploadCategoryImage()
-    }
-
-    const payload = { ...categoryForm, image_url: uploadedImageUrl }
-
-    try {
-      if (editingCategory) {
-        const { error } = await supabase
-          .from("categories")
-          .update(payload)
-          .eq("id", editingCategory)
-        if (error) throw error
-
-        setCategories(categories.map(c => (c.id === editingCategory ? { ...c, ...payload } : c)))
-        alert("Category updated successfully")
-      } else {
-        const { data, error } = await supabase.from("categories").insert([payload]).select()
-        if (error) throw error
-        if (data) setCategories([...categories, data[0]])
-        alert("Category updated successfully")
-      }
-
-      // Reset form
-      setCategoryForm({ name: "", description: "", display_order: 0, image_url: "" })
-      setImageFile(null)
-      setEditingCategory(null)
-      setShowCategoryForm(false)
-    } catch (error) {
-      console.error("Error saving category:", error)
-      alert("Error message here")
-    }
+  let uploadedImageUrl = categoryForm.image_url;
+  if (imageFile) {
+    const url = await uploadCategoryImage();
+    if (url) uploadedImageUrl = url;
   }
+
+  const payload = { ...categoryForm, image_url: uploadedImageUrl };
+
+  try {
+    if (editingCategory) {
+      // Update in Supabase
+      const { error } = await supabase
+        .from("categories")
+        .update(payload)
+        .eq("id", editingCategory);
+      if (error) throw error;
+
+      // Update state with the **new image URL**
+      setCategories(prev =>
+        prev.map(c =>
+          c.id === editingCategory ? { ...c, ...payload } : c
+        )
+      );
+
+      alert("Category updated successfully!");
+    } else {
+      // Insert new category
+      const { data, error } = await supabase.from("categories").insert([payload]).select();
+      if (error) throw error;
+      if (data) setCategories(prev => [...prev, data[0]]);
+      alert("Category created successfully!");
+    }
+
+    // Reset form
+    setCategoryForm({ name: "", description: "", display_order: 0, image_url: "" });
+    setImageFile(null);
+    setEditingCategory(null);
+    setShowCategoryForm(false);
+
+  } catch (error) {
+    console.error("Error saving category:", error);
+    alert("Failed to save category. Check console for details.");
+  }
+};
+
 
   const handleDeleteCategory = async (categoryId: string) => {
     if (!confirm("Are you sure? This will delete the category and all its products.")) return
