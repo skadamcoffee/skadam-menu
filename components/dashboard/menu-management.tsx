@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Edit2, Trash2, Image as ImageIcon } from "lucide-react"
 import { motion } from "framer-motion"
+import { toast } from "react-hot-toast" // optional toast message
 
 interface Category {
   id: string
@@ -17,8 +18,20 @@ interface Category {
   image_url: string | null
 }
 
+interface Product {
+  id: string
+  name: string
+  description: string
+  price: number
+  image_url: string
+  category_id: string
+  available: boolean
+  created_at: string
+}
+
 export function MenuManagement() {
   const [categories, setCategories] = useState<Category[]>([])
+  const [products, setProducts] = useState<Product[]>([])
   const [activeTab, setActiveTab] = useState<"categories" | "products">("categories")
   const [isLoading, setIsLoading] = useState(true)
 
@@ -32,34 +45,33 @@ export function MenuManagement() {
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [editingCategory, setEditingCategory] = useState<string | null>(null)
   const [showCategoryForm, setShowCategoryForm] = useState(false)
-  const [message, setMessage] = useState<string | null>(null)
 
   const supabase = createClient()
 
-  // Fetch categories
+  // Fetch categories & products
   useEffect(() => {
-    fetchCategories()
+    fetchData()
   }, [])
 
-  const fetchCategories = async () => {
+  const fetchData = async () => {
     setIsLoading(true)
     try {
-      const { data, error } = await supabase
-        .from("categories")
-        .select("*")
-        .order("display_order", { ascending: true })
-      if (error) throw error
-      if (data) setCategories(data)
+      const [categoriesRes, productsRes] = await Promise.all([
+        supabase.from("categories").select("*").order("display_order", { ascending: true }),
+        supabase.from("products").select("*").order("name", { ascending: true }),
+      ])
+      if (categoriesRes.data) setCategories(categoriesRes.data)
+      if (productsRes.data) setProducts(productsRes.data)
     } catch (error) {
-      console.error("Error fetching categories:", error)
+      console.error("Error fetching data:", error)
     } finally {
       setIsLoading(false)
     }
   }
 
-  // Upload image to bucket
+  // ---------------- CATEGORY IMAGE UPLOAD ----------------
   const uploadCategoryImage = async () => {
-    if (!imageFile) return categoryForm.image_url || null
+    if (!imageFile) return null
 
     const fileName = `${Date.now()}-${imageFile.name}`
 
@@ -69,6 +81,7 @@ export function MenuManagement() {
 
     if (error) {
       console.error("Image upload error:", error)
+      toast.error("Failed to upload image")
       return null
     }
 
@@ -78,26 +91,28 @@ export function MenuManagement() {
 
     if (urlError) {
       console.error("Error getting public URL:", urlError)
+      toast.error("Failed to get image URL")
       return null
     }
 
     return urlData.publicUrl
   }
 
-  // Save or update category
+  // ---------------- CATEGORY MANAGEMENT ----------------
   const handleSaveCategory = async () => {
-    if (!categoryForm.name.trim()) return
+    if (!categoryForm.name.trim()) {
+      toast.error("Category name is required")
+      return
+    }
+
+    let uploadedImageUrl = categoryForm.image_url
+    if (imageFile) {
+      uploadedImageUrl = await uploadCategoryImage()
+    }
+
+    const payload = { ...categoryForm, image_url: uploadedImageUrl }
 
     try {
-      const uploadedImageUrl = await uploadCategoryImage()
-
-      const payload = { 
-        name: categoryForm.name,
-        description: categoryForm.description,
-        display_order: categoryForm.display_order,
-        image_url: uploadedImageUrl
-      }
-
       if (editingCategory) {
         const { error } = await supabase
           .from("categories")
@@ -105,13 +120,13 @@ export function MenuManagement() {
           .eq("id", editingCategory)
         if (error) throw error
 
-        setCategories(categories.map(c => c.id === editingCategory ? { ...c, ...payload } : c))
-        setMessage("Category updated successfully!")
+        setCategories(categories.map(c => (c.id === editingCategory ? { ...c, ...payload } : c)))
+        toast.success("Category updated successfully")
       } else {
         const { data, error } = await supabase.from("categories").insert([payload]).select()
         if (error) throw error
         if (data) setCategories([...categories, data[0]])
-        setMessage("Category created successfully!")
+        toast.success("Category created successfully")
       }
 
       // Reset form
@@ -119,25 +134,22 @@ export function MenuManagement() {
       setImageFile(null)
       setEditingCategory(null)
       setShowCategoryForm(false)
-
-      // Remove message after 3s
-      setTimeout(() => setMessage(null), 3000)
     } catch (error) {
       console.error("Error saving category:", error)
+      toast.error("Failed to save category")
     }
   }
 
   const handleDeleteCategory = async (categoryId: string) => {
-    if (!confirm("Are you sure you want to delete this category?")) return
-
+    if (!confirm("Are you sure? This will delete the category and all its products.")) return
     try {
       const { error } = await supabase.from("categories").delete().eq("id", categoryId)
       if (error) throw error
       setCategories(categories.filter(c => c.id !== categoryId))
-      setMessage("Category deleted successfully!")
-      setTimeout(() => setMessage(null), 3000)
+      toast.success("Category deleted")
     } catch (error) {
       console.error("Error deleting category:", error)
+      toast.error("Failed to delete category")
     }
   }
 
@@ -152,6 +164,7 @@ export function MenuManagement() {
     setShowCategoryForm(true)
   }
 
+  // ---------------- UI ----------------
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -165,20 +178,19 @@ export function MenuManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Success message */}
-      {message && (
-        <div className="p-4 bg-green-200 text-green-800 rounded">{message}</div>
-      )}
-
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border">
         <button
           onClick={() => setActiveTab("categories")}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === "categories" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"
-          }`}
+          className={`px-4 py-2 font-medium transition-colors ${activeTab === "categories" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"}`}
         >
           Categories ({categories.length})
+        </button>
+        <button
+          onClick={() => setActiveTab("products")}
+          className={`px-4 py-2 font-medium transition-colors ${activeTab === "products" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"}`}
+        >
+          Products ({products.length})
         </button>
       </div>
 
@@ -216,7 +228,7 @@ export function MenuManagement() {
                     type="number"
                     placeholder="Display order"
                     value={categoryForm.display_order}
-                    onChange={(e) => setCategoryForm({ ...categoryForm, display_order: Number.parseInt(e.target.value) })}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, display_order: Number(e.target.value) })}
                     className="w-full px-3 py-2 border border-border rounded-md"
                   />
 
@@ -292,6 +304,7 @@ export function MenuManagement() {
                           <p className="text-sm text-muted-foreground">{category.description}</p>
                         </div>
                       </div>
+
                       <div className="flex gap-2">
                         <Button variant="outline" size="icon" onClick={() => handleEditCategory(category)}>
                           <Edit2 className="w-4 h-4" />
@@ -308,7 +321,7 @@ export function MenuManagement() {
           </div>
         </div>
       )}
-   
+
 
       {/* Products */}
       {activeTab === "products" && (
