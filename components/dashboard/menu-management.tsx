@@ -308,11 +308,8 @@ export function MenuManagement() {
           </div>
         </div>
       )}
-    </div>
-  )
-}
+   
 
-     
       {/* Products */}
       {activeTab === "products" && (
         <div className="space-y-4">
