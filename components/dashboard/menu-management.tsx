@@ -121,12 +121,12 @@ export function MenuManagement() {
         if (error) throw error
 
         setCategories(categories.map(c => (c.id === editingCategory ? { ...c, ...payload } : c)))
-        toast.success("Category updated successfully")
+        alert("Category updated successfully")
       } else {
         const { data, error } = await supabase.from("categories").insert([payload]).select()
         if (error) throw error
         if (data) setCategories([...categories, data[0]])
-        toast.success("Category created successfully")
+        alert("Category updated successfully")
       }
 
       // Reset form
@@ -136,7 +136,7 @@ export function MenuManagement() {
       setShowCategoryForm(false)
     } catch (error) {
       console.error("Error saving category:", error)
-      toast.error("Failed to save category")
+      alert("Error message here")
     }
   }
 
