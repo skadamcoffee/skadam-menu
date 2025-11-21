@@ -101,23 +101,26 @@ const uploadCategoryImage = async (): Promise<string | null> => {
 }
 
 const handleSaveCategory = async () => {
-  if (!categoryForm.name.trim()) {
-    alert("Category name is required!")
-    return
-  }
+  if (!categoryForm.name.trim()) return
 
   let uploadedImageUrl = categoryForm.image_url
+
+  // If a new file was selected, upload it
   if (imageFile) {
-    const url = await uploadCategoryImage()
-    if (!url) return // stop if upload failed
-    uploadedImageUrl = url
+    uploadedImageUrl = await uploadCategoryImage()
+    if (!uploadedImageUrl) return alert("Failed to upload image")
   }
 
-  const payload = { ...categoryForm, image_url: uploadedImageUrl }
+  // Include the uploaded URL in the payload
+  const payload = {
+    name: categoryForm.name,
+    description: categoryForm.description,
+    display_order: categoryForm.display_order,
+    image_url: uploadedImageUrl
+  }
 
   try {
     if (editingCategory) {
-      // Update existing category
       const { error } = await supabase
         .from("categories")
         .update(payload)
@@ -127,13 +130,13 @@ const handleSaveCategory = async () => {
 
       // Update local state
       setCategories(categories.map(c => c.id === editingCategory ? { ...c, ...payload } : c))
-      alert("Category updated successfully!")
     } else {
-      // Insert new category
-      const { data, error } = await supabase.from("categories").insert([payload]).select()
+      const { data, error } = await supabase
+        .from("categories")
+        .insert([payload])
+        .select()
       if (error) throw error
       if (data) setCategories([...categories, data[0]])
-      alert("Category created successfully!")
     }
 
     // Reset form
@@ -141,11 +144,13 @@ const handleSaveCategory = async () => {
     setImageFile(null)
     setEditingCategory(null)
     setShowCategoryForm(false)
-  } catch (err: any) {
-    console.error("Error saving category:", err)
-    alert("Failed to save category: " + (err.message || JSON.stringify(err)))
+    alert("Category saved successfully!")
+  } catch (error) {
+    console.error("Failed to save category:", error)
+    alert("Failed to save category")
   }
 }
+
 
 
   const handleDeleteCategory = async (categoryId: string) => {
