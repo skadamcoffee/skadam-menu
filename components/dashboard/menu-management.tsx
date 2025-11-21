@@ -1,0 +1,332 @@
+"use client"
+
+import { useState, useEffect } from "react"
+import { createClient } from "@/lib/supabase/client"
+import { Card } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
+import { Plus, Edit2, Trash2, Image as ImageIcon } from "lucide-react"
+import { motion } from "framer-motion"
+
+interface Category {
+  id: string
+  name: string
+  description: string
+  display_order: number
+  created_at: string
+  image_url: string | null
+}
+
+interface Product {
+  id: string
+  name: string
+  description: string
+  price: number
+  image_url: string
+  category_id: string
+  available: boolean
+  created_at: string
+}
+
+export function MenuManagement() {
+  const [categories, setCategories] = useState<Category[]>([])
+  const [products, setProducts] = useState<Product[]>([])
+  const [activeTab, setActiveTab] = useState<"categories" | "products">("categories")
+  const [isLoading, setIsLoading] = useState(true)
+
+  // Category form states
+  const [categoryForm, setCategoryForm] = useState({
+    name: "",
+    description: "",
+    display_order: 0,
+    image_url: ""
+  })
+  const [imageFile, setImageFile] = useState<File | null>(null)
+
+  const [editingCategory, setEditingCategory] = useState<string | null>(null)
+  const [showCategoryForm, setShowCategoryForm] = useState(false)
+
+  // Product form states
+  const [productForm, setProductForm] = useState({
+    name: "",
+    description: "",
+    price: 0,
+    image_url: "",
+    category_id: "",
+    available: true,
+  })
+  const [editingProduct, setEditingProduct] = useState<string | null>(null)
+  const [showProductForm, setShowProductForm] = useState(false)
+
+  const supabase = createClient()
+
+  // Fetch data on mount
+  useEffect(() => {
+    fetchData()
+  }, [])
+
+  const fetchData = async () => {
+    setIsLoading(true)
+    try {
+      const [categoriesRes, productsRes] = await Promise.all([
+        supabase.from("categories").select("*").order("display_order", { ascending: true }),
+        supabase.from("products").select("*").order("name", { ascending: true }),
+      ])
+
+      if (categoriesRes.data) setCategories(categoriesRes.data)
+      if (productsRes.data) setProducts(productsRes.data)
+    } catch (error) {
+      console.error("Error fetching data:", error)
+    } finally {
+      setIsLoading(false)
+    }
+  }
+
+  const uploadCategoryImage = async () => {
+    if (!imageFile) return null
+
+    const fileName = `${Date.now()}-${imageFile.name}`
+    const { data, error } = await supabase.storage
+      .from("category-icons")
+      .upload(fileName, imageFile)
+
+    if (error) {
+      console.error("Image upload error:", error)
+      return null
+    }
+
+    const { data: urlData } = supabase.storage
+      .from("category-icons")
+      .getPublicUrl(fileName)
+
+    return urlData.publicUrl
+  }
+
+  // Category Management
+  const handleSaveCategory = async () => {
+    if (!categoryForm.name.trim()) return
+
+    let uploadedImageUrl = categoryForm.image_url
+
+    if (imageFile) {
+      uploadedImageUrl = await uploadCategoryImage()
+    }
+
+    const payload = {
+      ...categoryForm,
+      image_url: uploadedImageUrl,
+    }
+
+    try {
+      if (editingCategory) {
+        const { error } = await supabase.from("categories").update(payload).eq("id", editingCategory)
+
+        if (error) throw error
+        setCategories(categories.map((c) => (c.id === editingCategory ? { ...c, ...payload } : c)))
+      } else {
+        const { data, error } = await supabase.from("categories").insert([payload]).select()
+
+        if (error) throw error
+        if (data) setCategories([...categories, data[0]])
+      }
+
+      setCategoryForm({ name: "", description: "", display_order: 0, image_url: "" })
+      setEditingCategory(null)
+      setImageFile(null)
+      setShowCategoryForm(false)
+    } catch (error) {
+      console.error("Error saving category:", error)
+    }
+  }
+
+  const handleDeleteCategory = async (categoryId: string) => {
+    if (!confirm("Are you sure? This will delete the category and all its products.")) return
+
+    try {
+      const { error } = await supabase.from("categories").delete().eq("id", categoryId)
+
+      if (error) throw error
+      setCategories(categories.filter((c) => c.id !== categoryId))
+    } catch (error) {
+      console.error("Error deleting category:", error)
+    }
+  }
+
+  const handleEditCategory = (category: Category) => {
+    setCategoryForm({
+      name: category.name,
+      description: category.description,
+      display_order: category.display_order,
+      image_url: category.image_url || ""
+    })
+    setEditingCategory(category.id)
+    setShowCategoryForm(true)
+  }
+
+  // --------- UI ---------
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-center space-y-4">
+          <div className="text-4xl animate-bounce">☕</div>
+          <p className="text-muted-foreground">Loading menu...</p>
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Tab Navigation */}
+      <div className="flex gap-2 border-b border-border">
+        <button
+          onClick={() => setActiveTab("categories")}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === "categories"
+              ? "border-b-2 border-primary text-primary"
+              : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Categories ({categories.length})
+        </button>
+      </div>
+
+      {/* Categories Tab */}
+      {activeTab === "categories" && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold">Menu Categories</h2>
+            <Button onClick={() => setShowCategoryForm(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Add Category
+            </Button>
+          </div>
+
+          {/* Category Form */}
+          {showCategoryForm && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+              <Card className="p-6 bg-muted border-2 border-primary">
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder="Category name"
+                    value={categoryForm.name}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-md"
+                  />
+
+                  <textarea
+                    placeholder="Category description"
+                    value={categoryForm.description}
+                    onChange={(e) => setCategoryForm({ ...categoryForm, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-md"
+                    rows={3}
+                  />
+
+                  <input
+                    type="number"
+                    placeholder="Display order"
+                    value={categoryForm.display_order}
+                    onChange={(e) =>
+                      setCategoryForm({ ...categoryForm, display_order: Number.parseInt(e.target.value) })
+                    }
+                    className="w-full px-3 py-2 border border-border rounded-md"
+                  />
+
+                  {/* Image Upload */}
+                  <div>
+                    <label className="text-sm font-medium">Category Icon</label>
+                    <div className="flex items-center gap-3 mt-2">
+                      <label className="cursor-pointer flex items-center gap-2 px-3 py-2 border rounded-md">
+                        <ImageIcon className="w-4 h-4" />
+                        <span>Upload Icon</span>
+                        <input
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => {
+                            const file = e.target.files?.[0]
+                            if (file) {
+                              setImageFile(file)
+                              setCategoryForm((prev) => ({
+                                ...prev,
+                                image_url: URL.createObjectURL(file),
+                              }))
+                            }
+                          }}
+                        />
+                      </label>
+
+                      {categoryForm.image_url && (
+                        <img
+                          src={categoryForm.image_url}
+                          className="w-12 h-12 rounded object-cover border"
+                        />
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button onClick={handleSaveCategory} className="flex-1">
+                      {editingCategory ? "Update" : "Create"} Category
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowCategoryForm(false)
+                        setEditingCategory(null)
+                        setImageFile(null)
+                        setCategoryForm({ name: "", description: "", display_order: 0, image_url: "" })
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Categories List */}
+          <div className="grid gap-3">
+            {categories.length === 0 ? (
+              <Card className="p-8 text-center text-muted-foreground">No categories yet</Card>
+            ) : (
+              categories.map((category) => (
+                <motion.div key={category.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <Card className="p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-center gap-4 justify-between">
+                      <div className="flex items-center gap-3">
+                        {category.image_url ? (
+                          <img src={category.image_url} className="w-12 h-12 rounded object-cover border" />
+                        ) : (
+                          <div className="w-12 h-12 bg-muted rounded flex items-center justify-center text-muted-foreground">
+                            <ImageIcon className="w-5 h-5" />
+                          </div>
+                        )}
+
+                        <div>
+                          <h3 className="font-bold text-lg">{category.name}</h3>
+                          <p className="text-sm text-muted-foreground">{category.description}</p>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="icon" onClick={() => handleEditCategory(category)}>
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteCategory(category.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
