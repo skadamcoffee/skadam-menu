@@ -45,6 +45,9 @@ export function MenuManagement() {
   const [editingCategory, setEditingCategory] = useState<string | null>(null)
   const [showCategoryForm, setShowCategoryForm] = useState(false)
 
+  // Success message
+  const [successMessage, setSuccessMessage] = useState<string>("")
+
   // Product form states
   const [productForm, setProductForm] = useState({
     name: "",
@@ -130,10 +133,14 @@ export function MenuManagement() {
         if (error) throw error
 
         setCategories(categories.map(c => (c.id === editingCategory ? { ...c, ...payload } : c)))
+        setSuccessMessage("Category updated successfully!")
       } else {
         const { data, error } = await supabase.from("categories").insert([payload]).select()
         if (error) throw error
-        if (data) setCategories([...categories, data[0]])
+        if (data) {
+          setCategories([...categories, data[0]])
+          setSuccessMessage("Category created successfully!")
+        }
       }
 
       // Reset form
@@ -141,6 +148,9 @@ export function MenuManagement() {
       setImageFile(null)
       setEditingCategory(null)
       setShowCategoryForm(false)
+
+      // Hide success message after 3 seconds
+      setTimeout(() => setSuccessMessage(""), 3000)
     } catch (error) {
       console.error("Error saving category:", error)
     }
@@ -153,6 +163,8 @@ export function MenuManagement() {
       const { error } = await supabase.from("categories").delete().eq("id", categoryId)
       if (error) throw error
       setCategories(categories.filter(c => c.id !== categoryId))
+      setSuccessMessage("Category deleted successfully!")
+      setTimeout(() => setSuccessMessage(""), 3000)
     } catch (error) {
       console.error("Error deleting category:", error)
     }
@@ -179,10 +191,12 @@ export function MenuManagement() {
         if (error) throw error
 
         setProducts(products.map(p => (p.id === editingProduct ? { ...p, ...productForm } : p)))
+        setSuccessMessage("Product updated successfully!")
       } else {
         const { data, error } = await supabase.from("products").insert([productForm]).select()
         if (error) throw error
         if (data) setProducts([...products, data[0]])
+        setSuccessMessage("Product created successfully!")
       }
 
       setProductForm({
@@ -195,6 +209,8 @@ export function MenuManagement() {
       })
       setEditingProduct(null)
       setShowProductForm(false)
+
+      setTimeout(() => setSuccessMessage(""), 3000)
     } catch (error) {
       console.error("Error saving product:", error)
     }
@@ -207,6 +223,8 @@ export function MenuManagement() {
       const { error } = await supabase.from("products").delete().eq("id", productId)
       if (error) throw error
       setProducts(products.filter(p => p.id !== productId))
+      setSuccessMessage("Product deleted successfully!")
+      setTimeout(() => setSuccessMessage(""), 3000)
     } catch (error) {
       console.error("Error deleting product:", error)
     }
@@ -235,7 +253,14 @@ export function MenuManagement() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 relative">
+      {/* Success message */}
+      {successMessage && (
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow z-50">
+          {successMessage}
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border">
         <button
@@ -256,7 +281,7 @@ export function MenuManagement() {
         </button>
       </div>
 
-      {/* Categories */}
+      {/* Categories Section */}
       {activeTab === "categories" && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
