@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Plus, Edit2, Trash2, Image as ImageIcon } from "lucide-react"
 import { motion } from "framer-motion"
-import { toast } from "react-hot-toast" // optional toast message
+
 
 interface Category {
   id: string
