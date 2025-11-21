@@ -81,11 +81,13 @@ export function MenuManagement() {
     }
   }
 
-  // Upload category image to Supabase bucket
+  // ---------------- CATEGORY IMAGE UPLOAD ----------------
   const uploadCategoryImage = async () => {
     if (!imageFile) return null
 
     const fileName = `${Date.now()}-${imageFile.name}`
+
+    // Upload file to bucket
     const { data, error } = await supabase.storage
       .from("category-icons")
       .upload(fileName, imageFile, { cacheControl: "3600", upsert: true })
@@ -95,8 +97,17 @@ export function MenuManagement() {
       return null
     }
 
-    const { publicUrl } = supabase.storage.from("category-icons").getPublicUrl(fileName)
-    return publicUrl
+    // Get public URL
+    const { data: urlData, error: urlError } = supabase.storage
+      .from("category-icons")
+      .getPublicUrl(fileName)
+
+    if (urlError) {
+      console.error("Error getting public URL:", urlError)
+      return null
+    }
+
+    return urlData.publicUrl
   }
 
   // ---------------- CATEGORY MANAGEMENT ----------------
@@ -112,7 +123,10 @@ export function MenuManagement() {
 
     try {
       if (editingCategory) {
-        const { error } = await supabase.from("categories").update(payload).eq("id", editingCategory)
+        const { error } = await supabase
+          .from("categories")
+          .update(payload)
+          .eq("id", editingCategory)
         if (error) throw error
 
         setCategories(categories.map(c => (c.id === editingCategory ? { ...c, ...payload } : c)))
@@ -122,6 +136,7 @@ export function MenuManagement() {
         if (data) setCategories([...categories, data[0]])
       }
 
+      // Reset form
       setCategoryForm({ name: "", description: "", display_order: 0, image_url: "" })
       setImageFile(null)
       setEditingCategory(null)
@@ -252,6 +267,7 @@ export function MenuManagement() {
             </Button>
           </div>
 
+          {/* Category Form */}
           {showCategoryForm && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="p-6 bg-muted border-2 border-primary">
@@ -330,6 +346,7 @@ export function MenuManagement() {
             </motion.div>
           )}
 
+          {/* Category List */}
           <div className="grid gap-3">
             {categories.length === 0 ? (
               <Card className="p-8 text-center text-muted-foreground">No categories yet</Card>
@@ -370,6 +387,7 @@ export function MenuManagement() {
         </div>
       )}
 
+  
       {/* Products */}
       {activeTab === "products" && (
         <div className="space-y-4">
