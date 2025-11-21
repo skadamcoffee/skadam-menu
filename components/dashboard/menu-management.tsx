@@ -44,9 +44,7 @@ export function MenuManagement() {
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [editingCategory, setEditingCategory] = useState<string | null>(null)
   const [showCategoryForm, setShowCategoryForm] = useState(false)
-
-  // Success message
-  const [successMessage, setSuccessMessage] = useState<string>("")
+  const [successMessage, setSuccessMessage] = useState("")
 
   // Product form states
   const [productForm, setProductForm] = useState({
@@ -86,12 +84,10 @@ export function MenuManagement() {
 
   // ---------------- CATEGORY IMAGE UPLOAD ----------------
   const uploadCategoryImage = async () => {
-    if (!imageFile) return null
+    if (!imageFile) return categoryForm.image_url // keep existing image if no new file
 
     const fileName = `${Date.now()}-${imageFile.name}`
-
-    // Upload file to bucket
-    const { data, error } = await supabase.storage
+    const { error } = await supabase.storage
       .from("category-icons")
       .upload(fileName, imageFile, { cacheControl: "3600", upsert: true })
 
@@ -100,31 +96,27 @@ export function MenuManagement() {
       return null
     }
 
-    // Get public URL
-    const { data: urlData, error: urlError } = supabase.storage
+    const { publicUrl } = supabase.storage
       .from("category-icons")
       .getPublicUrl(fileName)
 
-    if (urlError) {
-      console.error("Error getting public URL:", urlError)
-      return null
-    }
-
-    return urlData.publicUrl
+    return publicUrl
   }
 
   // ---------------- CATEGORY MANAGEMENT ----------------
   const handleSaveCategory = async () => {
     if (!categoryForm.name.trim()) return
 
-    let uploadedImageUrl = categoryForm.image_url
-    if (imageFile) {
-      uploadedImageUrl = await uploadCategoryImage()
-    }
-
-    const payload = { ...categoryForm, image_url: uploadedImageUrl }
-
     try {
+      const imageUrl = await uploadCategoryImage()
+
+      const payload = {
+        name: categoryForm.name,
+        description: categoryForm.description,
+        display_order: categoryForm.display_order,
+        image_url: imageUrl
+      }
+
       if (editingCategory) {
         const { error } = await supabase
           .from("categories")
@@ -132,15 +124,13 @@ export function MenuManagement() {
           .eq("id", editingCategory)
         if (error) throw error
 
-        setCategories(categories.map(c => (c.id === editingCategory ? { ...c, ...payload } : c)))
+        setCategories(categories.map(c => c.id === editingCategory ? { ...c, ...payload } : c))
         setSuccessMessage("Category updated successfully!")
       } else {
         const { data, error } = await supabase.from("categories").insert([payload]).select()
         if (error) throw error
-        if (data) {
-          setCategories([...categories, data[0]])
-          setSuccessMessage("Category created successfully!")
-        }
+        if (data) setCategories([...categories, data[0]])
+        setSuccessMessage("Category created successfully!")
       }
 
       // Reset form
@@ -149,7 +139,7 @@ export function MenuManagement() {
       setEditingCategory(null)
       setShowCategoryForm(false)
 
-      // Hide success message after 3 seconds
+      // Remove message after 3 seconds
       setTimeout(() => setSuccessMessage(""), 3000)
     } catch (error) {
       console.error("Error saving category:", error)
@@ -163,8 +153,6 @@ export function MenuManagement() {
       const { error } = await supabase.from("categories").delete().eq("id", categoryId)
       if (error) throw error
       setCategories(categories.filter(c => c.id !== categoryId))
-      setSuccessMessage("Category deleted successfully!")
-      setTimeout(() => setSuccessMessage(""), 3000)
     } catch (error) {
       console.error("Error deleting category:", error)
     }
@@ -189,14 +177,11 @@ export function MenuManagement() {
       if (editingProduct) {
         const { error } = await supabase.from("products").update(productForm).eq("id", editingProduct)
         if (error) throw error
-
         setProducts(products.map(p => (p.id === editingProduct ? { ...p, ...productForm } : p)))
-        setSuccessMessage("Product updated successfully!")
       } else {
         const { data, error } = await supabase.from("products").insert([productForm]).select()
         if (error) throw error
         if (data) setProducts([...products, data[0]])
-        setSuccessMessage("Product created successfully!")
       }
 
       setProductForm({
@@ -209,8 +194,6 @@ export function MenuManagement() {
       })
       setEditingProduct(null)
       setShowProductForm(false)
-
-      setTimeout(() => setSuccessMessage(""), 3000)
     } catch (error) {
       console.error("Error saving product:", error)
     }
@@ -223,8 +206,6 @@ export function MenuManagement() {
       const { error } = await supabase.from("products").delete().eq("id", productId)
       if (error) throw error
       setProducts(products.filter(p => p.id !== productId))
-      setSuccessMessage("Product deleted successfully!")
-      setTimeout(() => setSuccessMessage(""), 3000)
     } catch (error) {
       console.error("Error deleting product:", error)
     }
@@ -253,42 +234,35 @@ export function MenuManagement() {
   }
 
   return (
-    <div className="space-y-6 relative">
+    <div className="space-y-6">
       {/* Success message */}
       {successMessage && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded shadow z-50">
-          {successMessage}
-        </div>
+        <div className="p-3 bg-green-500 text-white rounded">{successMessage}</div>
       )}
 
       {/* Tabs */}
       <div className="flex gap-2 border-b border-border">
         <button
           onClick={() => setActiveTab("categories")}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === "categories" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"
-          }`}
+          className={`px-4 py-2 font-medium transition-colors ${activeTab === "categories" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"}`}
         >
           Categories ({categories.length})
         </button>
         <button
           onClick={() => setActiveTab("products")}
-          className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === "products" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"
-          }`}
+          className={`px-4 py-2 font-medium transition-colors ${activeTab === "products" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"}`}
         >
           Products ({products.length})
         </button>
       </div>
 
-      {/* Categories Section */}
+      {/* Categories */}
       {activeTab === "categories" && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold">Menu Categories</h2>
             <Button onClick={() => setShowCategoryForm(true)} className="gap-2">
-              <Plus className="w-4 h-4" />
-              Add Category
+              <Plus className="w-4 h-4" /> Add Category
             </Button>
           </div>
 
@@ -412,7 +386,7 @@ export function MenuManagement() {
         </div>
       )}
 
-  
+     
       {/* Products */}
       {activeTab === "products" && (
         <div className="space-y-4">
