@@ -42,7 +42,6 @@ export function MenuManagement() {
     image_url: ""
   })
   const [imageFile, setImageFile] = useState<File | null>(null)
-
   const [editingCategory, setEditingCategory] = useState<string | null>(null)
   const [showCategoryForm, setShowCategoryForm] = useState(false)
 
@@ -82,57 +81,50 @@ export function MenuManagement() {
     }
   }
 
+  // Upload category image to Supabase bucket
   const uploadCategoryImage = async () => {
     if (!imageFile) return null
 
     const fileName = `${Date.now()}-${imageFile.name}`
     const { data, error } = await supabase.storage
       .from("category-icons")
-      .upload(fileName, imageFile)
+      .upload(fileName, imageFile, { cacheControl: "3600", upsert: true })
 
     if (error) {
       console.error("Image upload error:", error)
       return null
     }
 
-    const { data: urlData } = supabase.storage
-      .from("category-icons")
-      .getPublicUrl(fileName)
-
-    return urlData.publicUrl
+    const { publicUrl } = supabase.storage.from("category-icons").getPublicUrl(fileName)
+    return publicUrl
   }
 
-  // Category Management
+  // ---------------- CATEGORY MANAGEMENT ----------------
   const handleSaveCategory = async () => {
     if (!categoryForm.name.trim()) return
 
     let uploadedImageUrl = categoryForm.image_url
-
     if (imageFile) {
       uploadedImageUrl = await uploadCategoryImage()
     }
 
-    const payload = {
-      ...categoryForm,
-      image_url: uploadedImageUrl,
-    }
+    const payload = { ...categoryForm, image_url: uploadedImageUrl }
 
     try {
       if (editingCategory) {
         const { error } = await supabase.from("categories").update(payload).eq("id", editingCategory)
-
         if (error) throw error
-        setCategories(categories.map((c) => (c.id === editingCategory ? { ...c, ...payload } : c)))
+
+        setCategories(categories.map(c => (c.id === editingCategory ? { ...c, ...payload } : c)))
       } else {
         const { data, error } = await supabase.from("categories").insert([payload]).select()
-
         if (error) throw error
         if (data) setCategories([...categories, data[0]])
       }
 
       setCategoryForm({ name: "", description: "", display_order: 0, image_url: "" })
-      setEditingCategory(null)
       setImageFile(null)
+      setEditingCategory(null)
       setShowCategoryForm(false)
     } catch (error) {
       console.error("Error saving category:", error)
@@ -144,9 +136,8 @@ export function MenuManagement() {
 
     try {
       const { error } = await supabase.from("categories").delete().eq("id", categoryId)
-
       if (error) throw error
-      setCategories(categories.filter((c) => c.id !== categoryId))
+      setCategories(categories.filter(c => c.id !== categoryId))
     } catch (error) {
       console.error("Error deleting category:", error)
     }
@@ -163,7 +154,60 @@ export function MenuManagement() {
     setShowCategoryForm(true)
   }
 
-  // --------- UI ---------
+  // ---------------- PRODUCT MANAGEMENT ----------------
+  const handleSaveProduct = async () => {
+    if (!productForm.name.trim() || !productForm.category_id) return
+
+    try {
+      if (editingProduct) {
+        const { error } = await supabase.from("products").update(productForm).eq("id", editingProduct)
+        if (error) throw error
+
+        setProducts(products.map(p => (p.id === editingProduct ? { ...p, ...productForm } : p)))
+      } else {
+        const { data, error } = await supabase.from("products").insert([productForm]).select()
+        if (error) throw error
+        if (data) setProducts([...products, data[0]])
+      }
+
+      setProductForm({
+        name: "",
+        description: "",
+        price: 0,
+        image_url: "",
+        category_id: "",
+        available: true,
+      })
+      setEditingProduct(null)
+      setShowProductForm(false)
+    } catch (error) {
+      console.error("Error saving product:", error)
+    }
+  }
+
+  const handleDeleteProduct = async (productId: string) => {
+    if (!confirm("Are you sure you want to delete this product?")) return
+
+    try {
+      const { error } = await supabase.from("products").delete().eq("id", productId)
+      if (error) throw error
+      setProducts(products.filter(p => p.id !== productId))
+    } catch (error) {
+      console.error("Error deleting product:", error)
+    }
+  }
+
+  const handleEditProduct = (product: Product) => {
+    setProductForm({ ...product })
+    setEditingProduct(product.id)
+    setShowProductForm(true)
+  }
+
+  const getCategoryName = (categoryId: string) => {
+    return categories.find(c => c.id === categoryId)?.name || "Unknown"
+  }
+
+  // ---------------- UI ----------------
   if (isLoading) {
     return (
       <div className="flex items-center justify-center py-12">
@@ -177,21 +221,27 @@ export function MenuManagement() {
 
   return (
     <div className="space-y-6">
-      {/* Tab Navigation */}
+      {/* Tabs */}
       <div className="flex gap-2 border-b border-border">
         <button
           onClick={() => setActiveTab("categories")}
           className={`px-4 py-2 font-medium transition-colors ${
-            activeTab === "categories"
-              ? "border-b-2 border-primary text-primary"
-              : "text-muted-foreground hover:text-foreground"
+            activeTab === "categories" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"
           }`}
         >
           Categories ({categories.length})
         </button>
+        <button
+          onClick={() => setActiveTab("products")}
+          className={`px-4 py-2 font-medium transition-colors ${
+            activeTab === "products" ? "border-b-2 border-primary text-primary" : "text-muted-foreground hover:text-foreground"
+          }`}
+        >
+          Products ({products.length})
+        </button>
       </div>
 
-      {/* Categories Tab */}
+      {/* Categories */}
       {activeTab === "categories" && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
@@ -202,7 +252,6 @@ export function MenuManagement() {
             </Button>
           </div>
 
-          {/* Category Form */}
           {showCategoryForm && (
             <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
               <Card className="p-6 bg-muted border-2 border-primary">
@@ -214,7 +263,6 @@ export function MenuManagement() {
                     onChange={(e) => setCategoryForm({ ...categoryForm, name: e.target.value })}
                     className="w-full px-3 py-2 border border-border rounded-md"
                   />
-
                   <textarea
                     placeholder="Category description"
                     value={categoryForm.description}
@@ -222,7 +270,6 @@ export function MenuManagement() {
                     className="w-full px-3 py-2 border border-border rounded-md"
                     rows={3}
                   />
-
                   <input
                     type="number"
                     placeholder="Display order"
@@ -248,20 +295,16 @@ export function MenuManagement() {
                             const file = e.target.files?.[0]
                             if (file) {
                               setImageFile(file)
-                              setCategoryForm((prev) => ({
+                              setCategoryForm(prev => ({
                                 ...prev,
-                                image_url: URL.createObjectURL(file),
+                                image_url: URL.createObjectURL(file)
                               }))
                             }
                           }}
                         />
                       </label>
-
                       {categoryForm.image_url && (
-                        <img
-                          src={categoryForm.image_url}
-                          className="w-12 h-12 rounded object-cover border"
-                        />
+                        <img src={categoryForm.image_url} className="w-12 h-12 rounded object-cover border" />
                       )}
                     </div>
                   </div>
@@ -287,12 +330,11 @@ export function MenuManagement() {
             </motion.div>
           )}
 
-          {/* Categories List */}
           <div className="grid gap-3">
             {categories.length === 0 ? (
               <Card className="p-8 text-center text-muted-foreground">No categories yet</Card>
             ) : (
-              categories.map((category) => (
+              categories.map(category => (
                 <motion.div key={category.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
                   <Card className="p-4 hover:shadow-md transition-shadow">
                     <div className="flex items-center gap-4 justify-between">
@@ -316,6 +358,141 @@ export function MenuManagement() {
                           <Edit2 className="w-4 h-4" />
                         </Button>
                         <Button variant="destructive" size="icon" onClick={() => handleDeleteCategory(category.id)}>
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </div>
+                    </div>
+                  </Card>
+                </motion.div>
+              ))
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Products */}
+      {activeTab === "products" && (
+        <div className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h2 className="text-xl font-bold">Menu Items</h2>
+            <Button onClick={() => setShowProductForm(true)} className="gap-2">
+              <Plus className="w-4 h-4" />
+              Add Product
+            </Button>
+          </div>
+
+          {/* Product Form */}
+          {showProductForm && (
+            <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
+              <Card className="p-6 bg-muted border-2 border-primary">
+                <div className="space-y-4">
+                  <input
+                    type="text"
+                    placeholder="Product name"
+                    value={productForm.name}
+                    onChange={(e) => setProductForm({ ...productForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-md"
+                  />
+                  <textarea
+                    placeholder="Product description"
+                    value={productForm.description}
+                    onChange={(e) => setProductForm({ ...productForm, description: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-md"
+                    rows={2}
+                  />
+                  <input
+                    type="number"
+                    step="0.1"
+                    placeholder="Price (TND)"
+                    value={productForm.price}
+                    onChange={(e) => setProductForm({ ...productForm, price: Number.parseFloat(e.target.value) })}
+                    className="w-full px-3 py-2 border border-border rounded-md"
+                  />
+                  <input
+                    type="url"
+                    placeholder="Image URL"
+                    value={productForm.image_url}
+                    onChange={(e) => setProductForm({ ...productForm, image_url: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-md"
+                  />
+                  <select
+                    value={productForm.category_id}
+                    onChange={(e) => setProductForm({ ...productForm, category_id: e.target.value })}
+                    className="w-full px-3 py-2 border border-border rounded-md"
+                  >
+                    <option value="">Select a category</option>
+                    {categories.map(cat => (
+                      <option key={cat.id} value={cat.id}>{cat.name}</option>
+                    ))}
+                  </select>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="available"
+                      checked={productForm.available}
+                      onChange={(e) => setProductForm({ ...productForm, available: e.target.checked })}
+                      className="w-4 h-4"
+                    />
+                    <label htmlFor="available" className="text-sm font-medium">
+                      Available for order
+                    </label>
+                  </div>
+
+                  <div className="flex gap-2">
+                    <Button onClick={handleSaveProduct} className="flex-1">
+                      {editingProduct ? "Update" : "Create"} Product
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setShowProductForm(false)
+                        setEditingProduct(null)
+                        setProductForm({
+                          name: "",
+                          description: "",
+                          price: 0,
+                          image_url: "",
+                          category_id: "",
+                          available: true,
+                        })
+                      }}
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              </Card>
+            </motion.div>
+          )}
+
+          {/* Product List */}
+          <div className="grid gap-3">
+            {products.length === 0 ? (
+              <Card className="p-8 text-center text-muted-foreground">No products yet</Card>
+            ) : (
+              products.map(product => (
+                <motion.div key={product.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }}>
+                  <Card className="p-4 hover:shadow-md transition-shadow">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-2">
+                          <h3 className="font-bold text-lg">{product.name}</h3>
+                          <Badge variant={product.available ? "default" : "secondary"}>
+                            {product.available ? "Available" : "Unavailable"}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground mb-2">{product.description}</p>
+                        <div className="flex gap-2">
+                          <Badge variant="outline">{getCategoryName(product.category_id)}</Badge>
+                          <Badge variant="outline" className="font-bold">{product.price.toFixed(2)} د.ت</Badge>
+                        </div>
+                      </div>
+
+                      <div className="flex gap-2">
+                        <Button variant="outline" size="icon" onClick={() => handleEditProduct(product)}>
+                          <Edit2 className="w-4 h-4" />
+                        </Button>
+                        <Button variant="destructive" size="icon" onClick={() => handleDeleteProduct(product.id)}>
                           <Trash2 className="w-4 h-4" />
                         </Button>
                       </div>
