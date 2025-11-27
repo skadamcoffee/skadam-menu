@@ -27,7 +27,7 @@ export default function ProductCard({ item }) {
           {/* Circular Starbucks-style image */}
           <div className="w-28 h-28 rounded-full overflow-hidden bg-white shadow-md flex items-center justify-center mb-3">
             <img
-              src={item.image}
+              src={item.image_url}
               alt={item.name}
               className="w-full h-full object-cover"
             />
