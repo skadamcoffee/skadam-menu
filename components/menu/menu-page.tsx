@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react"
 import { useSearchParams } from "next/navigation"
 import { createClient } from "@/lib/supabase/client"
-import { ProductCard } from "./product-card"
+import  ProductCard  from "./product-card"
 import { CategoryTabs } from "./category-tabs"
 import { SearchBar } from "./search-bar"
 import { Button } from "@/components/ui/button"
