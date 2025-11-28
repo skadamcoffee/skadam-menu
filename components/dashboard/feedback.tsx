@@ -9,18 +9,26 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 
 interface Feedback {
   id: string
-  user_name: string
+  user_name?: string
   comment?: string
-  rating?: string // emoji: 😞 😕 😐 😊 🤩
+  rating?: number // number 1-5
   created_at: string
 }
 
-const emojiLabels: Record<string, string> = {
-  "😞": "Poor",
-  "😕": "Fair",
-  "😐": "Good",
-  "😊": "Very Good",
-  "🤩": "Excellent",
+const ratingEmojis: Record<number, string> = {
+  1: "😞",
+  2: "😕",
+  3: "😐",
+  4: "😊",
+  5: "🤩",
+}
+
+const ratingLabels: Record<number, string> = {
+  1: "Poor",
+  2: "Fair",
+  3: "Good",
+  4: "Very Good",
+  5: "Excellent",
 }
 
 export function FeedbackManagement() {
@@ -36,38 +44,31 @@ export function FeedbackManagement() {
     const fetchFeedback = async () => {
       const { data, error } = await supabase
         .from("feedback")
-        .select(`*, users(user_name)`)
+        .select("*") // simple select
         .order("created_at", { ascending: false })
 
       if (error) console.error(error)
-      else {
-        // If your feedback table has a user_id, join with users table to get user_name
-        const formatted = data.map((f: any) => ({
-          ...f,
-          user_name: f.users?.user_name || "Anonymous"
-        }))
-        setFeedbacks(formatted)
-        setFilteredFeedbacks(formatted)
-      }
+      else setFeedbacks(data || [])
+
       setLoading(false)
     }
 
     fetchFeedback()
   }, [])
 
-  // Filter feedback by search and emoji
+  // Filter feedback by search and rating
   useEffect(() => {
     let filtered = feedbacks
 
     if (search) {
       filtered = filtered.filter(f =>
-        f.user_name.toLowerCase().includes(search.toLowerCase()) ||
+        (f.user_name?.toLowerCase().includes(search.toLowerCase()) ?? false) ||
         (f.comment?.toLowerCase().includes(search.toLowerCase()) ?? false)
       )
     }
 
     if (ratingFilter !== "all") {
-      filtered = filtered.filter(f => f.rating === ratingFilter)
+      filtered = filtered.filter(f => f.rating?.toString() === ratingFilter)
     }
 
     setFilteredFeedbacks(filtered)
@@ -87,15 +88,15 @@ export function FeedbackManagement() {
 
         <Select value={ratingFilter} onValueChange={setRatingFilter}>
           <SelectTrigger className="w-44">
-            <SelectValue placeholder="Filter by mood" />
+            <SelectValue placeholder="Filter by rating" />
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All</SelectItem>
-            <SelectItem value="😞">😞 Poor</SelectItem>
-            <SelectItem value="😕">😕 Fair</SelectItem>
-            <SelectItem value="😐">😐 Good</SelectItem>
-            <SelectItem value="😊">😊 Very Good</SelectItem>
-            <SelectItem value="🤩">🤩 Excellent</SelectItem>
+            <SelectItem value="1">😞 Poor</SelectItem>
+            <SelectItem value="2">😕 Fair</SelectItem>
+            <SelectItem value="3">😐 Good</SelectItem>
+            <SelectItem value="4">😊 Very Good</SelectItem>
+            <SelectItem value="5">🤩 Excellent</SelectItem>
           </SelectContent>
         </Select>
       </div>
@@ -106,8 +107,8 @@ export function FeedbackManagement() {
         {filteredFeedbacks.map(fb => (
           <Card key={fb.id} className="p-4 flex flex-col md:flex-row md:justify-between md:items-center">
             <div>
-              <p><strong>User:</strong> {fb.user_name}</p>
-              <p><strong>Mood:</strong> {fb.rating} {emojiLabels[fb.rating || ""]}</p>
+              <p><strong>User:</strong> {fb.user_name || "Anonymous"}</p>
+              <p><strong>Mood:</strong> {ratingEmojis[fb.rating || 0] || "N/A"} ({ratingLabels[fb.rating || 0] || "N/A"})</p>
               {fb.comment && <p><strong>Comment:</strong> {fb.comment}</p>}
               <p className="text-sm text-gray-500">{new Date(fb.created_at).toLocaleString()}</p>
             </div>
