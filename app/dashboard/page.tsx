@@ -62,6 +62,7 @@ export default function DashboardPage() {
         {activeTab === "menu" && <MenuManagement />}
         {activeTab === "qr" && <QRGenerator />}
         {activeTab === "loyalty" && <LoyaltyManagement />}
+        {activeTab === "feedback" && <FeedbackManagement />}
       </main>
     </div>
   )
