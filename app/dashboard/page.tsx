@@ -9,6 +9,8 @@ import { MenuManagement } from "@/components/dashboard/menu-management"
 import { LoyaltyManagement } from "@/components/dashboard/loyalty-management"
 import { QRGenerator } from "@/components/dashboard/qr-generator"
 import { useRouter } from "next/navigation"
+import { FeedbackManagement } from "@/components/dashboard/feedback"
+
 
 export default function DashboardPage() {
   const [activeTab, setActiveTab] = useState("orders")
