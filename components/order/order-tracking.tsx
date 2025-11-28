@@ -12,6 +12,7 @@ import { FeedbackForm } from "@/components/feedback/feedback-form"
 
 interface Order {
   id: string
+  order_number: number
   status: string
   total_price: number
   created_at: string
@@ -75,6 +76,7 @@ export function OrderTracking({ orderId }: { orderId: string }) {
           .from("orders")
           .select(`
             id,
+            order_number,
             status,
             total_price,
             created_at,
@@ -115,7 +117,11 @@ export function OrderTracking({ orderId }: { orderId: string }) {
 
     const fetchFeedback = async () => {
       try {
-        const { data, error } = await supabase.from("feedback").select("*").eq("order_id", orderId).limit(1)
+        const { data, error } = await supabase
+          .from("feedback")
+          .select("*")
+          .eq("order_id", orderId)
+          .limit(1)
 
         if (error) throw error
         if (data && data.length > 0) {
@@ -200,7 +206,7 @@ export function OrderTracking({ orderId }: { orderId: string }) {
         {/* Header */}
         <div className="text-center space-y-2">
           <h1 className="text-3xl font-bold">Your Order</h1>
-          <p className="text-muted-foreground">Order #{order.id.slice(0, 8)}</p>
+          <p className="text-muted-foreground">Order #{order.order_number}</p>
         </div>
 
         {/* Notifications Section */}
