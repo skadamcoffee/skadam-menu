@@ -58,7 +58,6 @@ export function OrderSubmission({ tableNumber, total, itemCount, onSuccess }: Or
       }))
 
       const { error: itemsError } = await supabase.from("order_items").insert(orderItems)
-
       if (itemsError) throw itemsError
 
       if (user?.id) {
@@ -73,23 +72,35 @@ export function OrderSubmission({ tableNumber, total, itemCount, onSuccess }: Or
 
       setOrderId(order.id)
       setIsSuccess(true)
-
-      setTimeout(() => {
-        onSuccess()
-        router.push(`/order/${order.id}?table=${tableNumber}`)
-      }, 3000)
+      setIsLoading(false)
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to submit order")
       setIsLoading(false)
     }
   }
 
+  const handleVideoComplete = () => {
+    if (orderId && tableNumber) {
+      onSuccess()
+      router.push(`/order/${orderId}?table=${tableNumber}`)
+    }
+  }
+
+  // Success + video animation
   if (isSuccess) {
     return (
       <div className="flex flex-col items-center justify-center py-8 space-y-4">
         <div className="text-green-500 animate-bounce">
           <CheckCircle className="w-12 h-12" />
         </div>
+        <video
+          src="https://res.cloudinary.com/dgequg3ik/video/upload/v1761747176/Video_Edit_Request_Replace_Bean_With_SKADAM_m14uib.mp4"
+          autoPlay
+          muted
+          playsInline
+          onEnded={handleVideoComplete}
+          className="w-full max-w-md rounded-lg shadow-lg"
+        />
         <div className="text-center space-y-1">
           <h3 className="font-bold text-lg">Order Confirmed!</h3>
           <p className="text-sm text-muted-foreground">Order ID: {orderId?.slice(0, 8)}</p>
